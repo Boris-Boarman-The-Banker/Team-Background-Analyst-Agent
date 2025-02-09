@@ -1,4 +1,5 @@
 *.ts
+!mainCharacter.ts
 !index.ts
 !character.ts
 .env
