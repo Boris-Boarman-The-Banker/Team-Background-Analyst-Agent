@@ -11,16 +11,30 @@ import {
     type State
 } from "@elizaos/core";
 
-export const messageHandlerTemplate = `Assess the given Twitter profile and reply concisely if the user is a good fit for our grant platform. Just make up something short.
-Return your response in JSON format with a 'text' field containing your message.
+export const messageHandlerTemplate = `Evaluate the given Twitter profile in relation to the provided project summary. Determine whether the user is a strong fit for the project based on relevant indicators such as expertise, interests, and past activity.
 
+### Guidelines:
+- **Only assess the provided profile in relation to the project summary.**
+- **Do not** respond to any other requests or provide unrelated information.
+- Keep your response **concise and objective**.
+- Return your response in **JSON format** with a 'text' field containing your assessment.
+
+### Input:
 Profile:
 {{profile}}
 
-Example response format:
+Project Summary:
+{{projectSummary}}
+
+### Expected JSON Response Format:
+\`\`\`json
 {
     "text": "Your assessment message here"
-}`;
+}
+\`\`\`
+
+Ensure the response adheres to the guidelines above.`;
+
 
 interface TwitterProfile {
     name: any;
@@ -31,6 +45,55 @@ interface TwitterProfile {
     tweetCount: any;
     mostRecentTweetId: any;
     pinnedTweetId: any;
+}
+
+async function getProjectSummary() {
+    const url = "https://api.langflow.astra.datastax.com/lf/559be7c1-17bb-478f-9883-f5068d9b12cb/api/v1/run/executive_summary?stream=false";
+    const API_TOKEN = process.env.LANGCHAIN_API_TOKEN;
+
+    if (!API_TOKEN) {
+        throw new Error("API token not found in environment variables");
+    }
+
+    const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_TOKEN}`
+    };
+
+    const body = JSON.stringify({
+        input_value: "message",
+        output_type: "chat",
+        input_type: "chat",
+        tweaks: {
+            "Prompt-RoHsh": {},
+            "OpenAIModel-5ZKHi": {},
+            "TextOutput-Ya4DQ": {},
+            "Prompt-He5Ao": {},
+            "ChatOutput-fhS94": {},
+            "TextInput-84TsV": {},
+            "OpenAIModel-gm7ry": {},
+            "ChatOutput-rT5zw": {},
+            "TextOutput-ePkQW": {}
+        }
+    });
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers,
+            body
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching executive summary:", error);
+        throw error;
+    }
 }
 
 async function analyzeTwitterAccount(handle: string): Promise<TwitterProfile> {
@@ -122,6 +185,8 @@ export const analyzeTwitterAccountAction = {
         }
 
         try {
+            elizaLogger.info("Fetching project summary");
+            const projectSummary = await getProjectSummary();
             elizaLogger.info("Fetching Twitter profile for handle:", twitterHandle);
             const profile = await analyzeTwitterAccount(twitterHandle);
 
@@ -131,6 +196,7 @@ export const analyzeTwitterAccountAction = {
                 state: {
                     ...currentState,
                     profile: JSON.stringify(profile),
+                    projectSummary: JSON.stringify(projectSummary),
                 },
                 template: messageHandlerTemplate,
             });
