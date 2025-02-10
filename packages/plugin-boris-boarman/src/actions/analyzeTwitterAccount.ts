@@ -11,45 +11,55 @@ import {
     type State
 } from "@elizaos/core";
 
-export const messageHandlerTemplate = `Assess the given Twitter profile and reply concisely if the user is a good fit for our grant platform. Just make up something short.
-Return your response in JSON format with a 'text' field containing your message.
+export const messageHandlerTemplate = `You are a Venture Capital analyst evaluating startup founders. Your goal is to generate a numeric score based on the founder's experience, industry relevance, and execution capability.
 
-Profile:
+### Scoring Criteria:
+1. **Experience Score (1-10)**: Evaluate years of relevant experience, past startup roles, and industry background.
+2. **Industry Relevance Score (1-10)**: Assess whether the founder’s expertise aligns with their startup’s domain.
+3. **Execution Capability Score (1-10)**: Analyze their track record, social presence, and ability to build and scale products.
+
+### Instructions:
+- Provide a JSON response with three scores.
+- Keep your assessment concise but informative.
+- Do not continue the conversation beyond the evaluation.
+
+### Profile:
 {{profile}}
 
-Example response format:
+### Example response format:
 {
-    "text": "Your assessment message here"
+    "experience_score": 8,
+    "industry_relevance_score": 9,
+    "execution_capability_score": 7,
+    "text": "This founder has strong experience in fintech (8/10), highly relevant industry background (9/10), and good execution capability (7/10) based on prior roles."
 }`;
 
 interface TwitterProfile {
-    name: any;
-    username: any;
-    bio: any;
-    followers: any;
-    following: any;
-    tweetCount: any;
-    mostRecentTweetId: any;
-    pinnedTweetId: any;
+    name: string;
+    username: string;
+    bio: string;
+    followers: number;
+    following: number;
+    tweetCount: number;
+    mostRecentTweetId?: string;
+    pinnedTweetId?: string;
 }
 
 async function analyzeTwitterAccount(handle: string): Promise<TwitterProfile> {
     const bearerToken = process.env.TWITTER_BEARER_TOKEN;
     if (!bearerToken) {
-        throw new Error(
-            "Twitter bearer token not found in environment variables"
-        );
+        throw new Error("Twitter bearer token not found in environment variables");
     }
 
     try {
         const response = await fetch(
-            `https://api.twitter.com/2/users/by/username/${handle}?user.fields=description,public_metrics,id,most_recent_tweet_id,pinned_tweet_id&tweet.fields=article,author_id,text,source`,
-            {
-                headers: {
-                    Authorization: `Bearer ${bearerToken}`,
-                    "Content-Type": "application/json",
-                },
-            }
+          `https://api.twitter.com/2/users/by/username/${handle}?user.fields=description,public_metrics,id`,
+          {
+              headers: {
+                  Authorization: `Bearer ${bearerToken}`,
+                  "Content-Type": "application/json",
+              },
+          }
         );
 
         if (!response.ok) {
@@ -73,10 +83,8 @@ async function analyzeTwitterAccount(handle: string): Promise<TwitterProfile> {
             pinnedTweetId: user.pinned_tweet_id || "N/A",
         };
     } catch (error) {
-        console.log("!!!error", error);
-        throw new Error(
-            `Failed to fetch Twitter account info: ${error.message}`
-        );
+        console.error("Error fetching Twitter profile:", error);
+        throw new Error(`Failed to fetch Twitter account info: ${error.message}`);
     }
 }
 
